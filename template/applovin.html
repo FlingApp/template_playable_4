@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>{{TITLE}}</title>
+  <script>
+    // MRAID 2.0 для Applovin
+    // Этот скрипт будет инжектирован рекламной сетью
+    // Мы просто проверяем его наличие и настраиваем обработчики
+    (function() {
+      // Ждем готовности MRAID перед инициализацией (MRAID 2.0 requirement)
+      function initMRAID() {
+        if (typeof mraid === 'undefined') {
+          console.warn('MRAID not available');
+          return;
+        }
+
+        // Ждем ready event (MRAID 2.0 requirement)
+        if (mraid.getState() === 'loading') {
+          mraid.addEventListener('ready', function() {
+            setupMRAID();
+          });
+        } else {
+          setupMRAID();
+        }
+      }
+
+      function setupMRAID() {
+        // Обработчик клика по CTA кнопке из base.html
+        // Используем capture phase для перехвата события до base.html
+        window.addEventListener('playable-cta-click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof mraid !== 'undefined' && mraid.open) {
+            mraid.open();
+          } else {
+            console.warn('MRAID.open is not available');
+          }
+        }, true); // Capture phase
+      }
+
+      // Инициализация при загрузке
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMRAID);
+      } else {
+        initMRAID();
+      }
+    })();
+  </script>
+  {{BASE_STYLES}}
+</head>
+<body>
+  {{BASE_BODY}}
+</body>
+</html>

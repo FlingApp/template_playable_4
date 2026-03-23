@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>{{TITLE}}</title>
+  <script>
+    // MRAID 3.0 для Unity
+    // Unity инжектирует MRAID 3.0, мы настраиваем обработчики
+    (function() {
+      // Определяем платформу используя userAgent (требуется Unity Ads)
+      function detectPlatform() {
+        var userAgent = navigator.userAgent || navigator.vendor || '';
+        return /android/i.test(userAgent) ? 'android' : 'ios';
+      }
+
+      // Получаем URL магазина на основе платформы
+      function getStoreUrl() {
+        var platform = detectPlatform();
+        var googlePlayUrl = '{{GOOGLE_PLAY_URL}}';
+        var appstoreUrl = '{{APPSTORE_URL}}';
+        
+        if (platform === 'android') {
+          // Проверяем, что URL не является плейсхолдером
+          return (googlePlayUrl && googlePlayUrl !== '{{GOOGLE_PLAY_URL}}' && !googlePlayUrl.startsWith('{{')) 
+            ? googlePlayUrl 
+            : null;
+        } else {
+          return (appstoreUrl && appstoreUrl !== '{{APPSTORE_URL}}' && !appstoreUrl.startsWith('{{')) 
+            ? appstoreUrl 
+            : null;
+        }
+      }
+
+      // Ждем готовности MRAID перед инициализацией
+      function initMRAID() {
+        if (typeof mraid === 'undefined') {
+          console.warn('MRAID not available');
+          return;
+        }
+
+        // Ждем ready event
+        if (mraid.getState() === 'loading') {
+          mraid.addEventListener('ready', function() {
+            setupMRAID();
+          });
+        } else {
+          setupMRAID();
+        }
+      }
+
+      function setupMRAID() {
+        // Unity требует ждать viewableChange event перед запуском playable
+        let isViewable = false;
+        
+        // Добавляем обработчик viewableChange
+        mraid.addEventListener('viewableChange', function(viewable) {
+          if (viewable && !isViewable) {
+            isViewable = true;
+            // Теперь можно запускать playable контент
+            startPlayable();
+          }
+        });
+        
+        // Проверяем, если уже viewable, запускаем сразу
+        if (mraid.isViewable && mraid.isViewable()) {
+          startPlayable();
+        }
+
+        function startPlayable() {
+          // Обработчик клика по CTA кнопке из base.html
+          window.addEventListener('playable-cta-click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Получаем URL магазина на основе userAgent
+            var storeUrl = getStoreUrl();
+            
+            if (typeof mraid !== 'undefined' && mraid.open) {
+              // Используем mraid.open с URL магазина, если он доступен
+              if (storeUrl) {
+                mraid.open(storeUrl);
+              } else {
+                // Если URL нет, используем mraid.open() без параметров
+                mraid.open();
+              }
+            } else {
+              console.warn('MRAID.open is not available');
+              // Fallback: открываем в новом окне
+              if (storeUrl) {
+                window.open(storeUrl, '_blank');
+              }
+            }
+          }, true); // Capture phase
+        }
+      }
+
+      // Инициализация при загрузке
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMRAID);
+      } else {
+        initMRAID();
+      }
+    })();
+  </script>
+  {{BASE_STYLES}}
+</head>
+<body>
+  {{BASE_BODY}}
+</body>
+</html>

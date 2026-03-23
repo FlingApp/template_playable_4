@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,user-scalable=no,initial-scale=1,minimum-scale=1,maximum-scale=1">
+  <meta name="ad.orientation" content="portrait">
+  <meta name="ad.size" content="width=320,height=480">
+  <title>{{TITLE}}</title>
+  <script>
+    var clickTag = "{{GOOGLE_PLAY_URL}}";
+    (function() {
+      function detectPlatform() {
+        var ua = navigator.userAgent || navigator.vendor || '';
+        return /android/i.test(ua) ? 'android' : 'ios';
+      }
+      function getStoreUrl() {
+        var platform = detectPlatform();
+        var googlePlay = '{{GOOGLE_PLAY_URL}}'.trim();
+        var appstore = '{{APPSTORE_URL}}'.trim();
+        if (platform === 'android' && googlePlay && !googlePlay.startsWith('{{')) return googlePlay;
+        if (platform === 'ios' && appstore && !appstore.startsWith('{{')) return appstore;
+        return googlePlay || appstore || null;
+      }
+      window.addEventListener('playable-cta-click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var url = (typeof clickTag !== 'undefined' && clickTag && !clickTag.startsWith('{{')) ? clickTag : getStoreUrl();
+        if (url) window.location.href = url;
+      }, true);
+    })();
+  </script>
+  {{BASE_STYLES}}
+</head>
+<body>
+  {{BASE_BODY}}
+</body>
+</html>

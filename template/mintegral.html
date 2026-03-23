@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,user-scalable=no,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="msapplication-tap-highlight" content="no">
+  <meta name="full-screen" content="yes">
+  <meta name="x5-fullscreen" content="true">
+  <meta name="360-fullscreen" content="true">
+  <meta name="x5-page-mode" content="app">
+  <title>{{TITLE}}</title>
+  <script>
+    // Mintegral SDK Integration
+    (function() {
+      // Глобальная функция gameStart - Mintegral будет вызывать её автоматически
+      function gameStart() {
+        // Здесь можно добавить логику при старте playable
+        // Например: запуск таймера, фоновой музыки и т.д.
+      }
+
+      // Глобальная функция gameClose - Mintegral будет вызывать её автоматически
+      function gameClose() {
+        // Здесь можно добавить логику при закрытии playable
+        // Например: остановка фоновой музыки и т.д.
+      }
+
+      // Экспортируем функции в глобальную область видимости
+      window.gameStart = gameStart;
+      window.gameClose = gameClose;
+
+      // Обработчик клика по CTA кнопке из base.html
+      // Все редиректы должны идти через window.install()
+      // При клике на CTA вызываем gameEnd (конец playable) и затем install (редирект)
+      window.addEventListener('playable-cta-click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Вызываем gameEnd - сигнализируем, что playable завершен
+        if (window.gameEnd && typeof window.gameEnd === 'function') {
+          window.gameEnd();
+        }
+        
+        // Вызываем Mintegral API для редиректа
+        if (window.install && typeof window.install === 'function') {
+          window.install();
+        } else {
+          console.warn('window.install is not available');
+        }
+      }, true); // Capture phase для перехвата события
+
+      // Функция для проверки загрузки всех ресурсов
+      function checkResourcesLoaded() {
+        // Проверяем загрузку всех изображений
+        var images = document.querySelectorAll('img');
+        var imagesLoaded = 0;
+        var totalImages = images.length;
+
+        if (totalImages === 0) {
+          // Если нет изображений, сразу вызываем gameReady
+          callGameReady();
+          return;
+        }
+
+        function onImageLoad() {
+          imagesLoaded++;
+          if (imagesLoaded === totalImages) {
+            callGameReady();
+          }
+        }
+
+        function onImageError() {
+          imagesLoaded++;
+          if (imagesLoaded === totalImages) {
+            callGameReady();
+          }
+        }
+
+        // Проверяем каждое изображение
+        for (var i = 0; i < totalImages; i++) {
+          if (images[i].complete) {
+            onImageLoad();
+          } else {
+            images[i].addEventListener('load', onImageLoad);
+            images[i].addEventListener('error', onImageError);
+          }
+        }
+      }
+
+      // Вызываем gameReady после загрузки всех ресурсов
+      function callGameReady() {
+        if (window.gameReady && typeof window.gameReady === 'function') {
+          window.gameReady();
+        }
+      }
+
+      // Инициализация при загрузке DOM
+      function init() {
+        // Ждем полной загрузки DOM
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function() {
+            // Небольшая задержка для гарантии, что все элементы отрендерены
+            setTimeout(checkResourcesLoaded, 100);
+          });
+        } else {
+          setTimeout(checkResourcesLoaded, 100);
+        }
+      }
+
+      init();
+    })();
+  </script>
+  {{BASE_STYLES}}
+</head>
+<body>
+  {{BASE_BODY}}
+</body>
+</html>

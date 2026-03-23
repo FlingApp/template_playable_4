@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Playable</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
+    html,body{height:100%;overflow:hidden} /* Отключаем скролл body */
+    body{
+      color:#e8eef4;
+      line-height:1.6;
+      position: relative;
+    }
+    /* Фон страницы: картинка scaleAspectFill (cover + center) в портрете и ландшафте */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 0;
+      background-image: url({{BG_IMAGE_BASE64}});
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    /* Градиенты-шапка и футер: чёрный → прозрачный, 100pt, на весь экран */
+    .gradient-overlay {
+      position: fixed;
+      left: 0;
+      right: 0;
+      width: 100%;
+      height: 100pt;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .gradient-overlay-top {
+      top: 0;
+      background: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
+    }
+    .gradient-overlay-bottom {
+      bottom: 0;
+      background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
+    }
+    
+    /* Основной контейнер на всю высоту */
+    .container {
+      display: flex;
+      flex-direction: column; /* Вертикальное расположение блоков */
+      height: 100%;
+      width: 100%;
+    }
+
+    /* ВЕРХНЯЯ ПАНЕЛЬ (ФИКСИРОВАННАЯ) — портрет: только лого (слой выше градиентов) */
+    .left-panel {
+      width: 100%;
+      flex-shrink: 0;
+      background: transparent;
+      z-index: 20;
+      box-shadow: none;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Портрет: в шапке только лого, баннер скрыт (он в right-panel) */
+    .left-panel .story-cover {
+      display: none;
+    }
+
+    /* НИЖНЯЯ ПАНЕЛЬ (СКРОЛЛИРУЕМАЯ) — портрет: баннер + заголовок + текст (под градиентом) */
+    .right-panel {
+      width: 100%;
+      flex-grow: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+      background: transparent;
+      padding-bottom: 80px;
+      z-index: 1;
+    }
+
+    /* Баннер внутри скролла (только портрет) — 1:1 квадрат, max-width = ширина iPhone Pro (393px) */
+    .right-panel .story-cover {
+      flex-shrink: 0;
+      display: block;
+      overflow: hidden;
+      width: 100%;
+      max-width: 393px;
+      aspect-ratio: 1 / 1;
+      height: auto;
+      margin: 0 auto 15px auto;
+      background-image: var(--banner-url);
+      background-size: cover;
+      background-position: center;
+    }
+
+    .app-icon,.story-cover{width:100%;max-width:500px;margin:0 auto;overflow:hidden}
+    .app-icon{display:flex;align-items:center;justify-content:center;height:70px;background:transparent;flex-shrink:0;}
+    .app-icon img{height:60px;width:auto;border-radius:0;box-shadow:none;background:transparent;display:block}
+    
+    .story-header{width:100%;max-width:500px;padding:15px 20px;margin:0 auto;background:transparent}
+    .story-title{font-size:24px;font-weight:700;margin-bottom:5px;line-height:1.3}
+    .story-content{padding:0 5% 20px 5%;max-width:393px;margin:0 auto;border-radius:8px;white-space:pre-line;background:transparent}
+    .story-paragraph{margin-bottom:20px;font-size:15px;line-height:1.5}
+    
+    .story-bottom{position:fixed;bottom:50pt;left:50%;transform:translateX(-50%);z-index:20;width:100%;pointer-events:none}
+    .landscape-stack { display: none; }
+    /* Копия стрелок для ландшафта — в портрете скрыта */
+    .scroll-indicator-landscape { display: none; }
+    
+    /* Обёртка для кнопки и стрелки */
+    .button-wrapper {
+      position: relative;
+      width: 60%;
+      max-width: 368px;
+      margin: 0 auto;
+    }
+
+    .chapter-button{pointer-events:auto;display:block;width:100%;padding:16px 0;background:#5eb3f6;color:#fff;text-align:center;border-radius:50px;font-weight:600;font-size:18px;box-shadow:0 4px 8px rgba(0,0,0,0.2);transition:background-color .3s;border:none;outline:none;animation:breathe 1.5s ease-in-out infinite alternate}
+    .chapter-button:active{background:rgba(94,179,246,0.85)}
+    .chapter-button.jump-box{color:#000}
+    @keyframes breathe{0%{transform:scale(.98)}50%{transform:scale(1.02)}100%{transform:scale(.98)}}
+    
+    /* =========================================
+       ИДЕАЛЬНАЯ СТРЕЛКА - КОНВЕЙЕР (БЕЗ НАЕЗДОВ)
+       ========================================= */
+    .scroll-indicator {
+      position: absolute;
+      top: 50%;
+      right: -50px; 
+      width: 24px;
+      height: 100%; 
+      transform: translateY(-50%); 
+      pointer-events: none;
+    }
+
+    .arrow-segment {
+      position: absolute;
+      left: 5px;
+      top: 0;
+      width: 14px;
+      height: 14px;
+      border-bottom: 3px solid #5eb3f6;
+      border-right: 3px solid #5eb3f6;
+      opacity: 0;
+      animation: infiniteChevron 1.5s linear infinite; 
+    }
+
+    .segment-1 { animation-delay: 0s; }
+    .segment-2 { animation-delay: 0.5s; }
+    .segment-3 { animation-delay: 1.0s; }
+
+    @keyframes infiniteChevron {
+      0% { opacity: 0; transform: translateY(0px) rotate(45deg); }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(32px) rotate(45deg); }
+    }
+
+    @media(max-width:768px){.story-title{font-size:22px}.story-content{padding:0 5% 15px 5%}}
+    @media(max-width:480px){
+      .story-title{font-size:20px}.story-paragraph{font-size:15px}
+      .scroll-indicator { right: -40px; top: 50%; transform: translateY(-50%) scale(0.8); }
+    }
+    
+    /* ГОРИЗОНТАЛЬНАЯ ОРИЕНТАЦИЯ (LANDSCAPE) — без изменений: текст слева, обложка справа */
+    @media(orientation:landscape){
+      body{padding-bottom:0;height:100vh;overflow:hidden}
+      .container{
+        display:flex;
+        flex-direction: row-reverse; 
+        height:100vh;
+        overflow:hidden;
+      }
+      .left-panel{
+        width:50%;
+        max-height: 100vh; 
+        overflow:hidden;
+        background: transparent;
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        box-shadow: none;
+      }
+      .left-panel .story-cover{ display:block; }
+      .right-panel .story-cover{ display:none; }
+      /* Ландшафт: вертикальный стек (лого, баннер, кнопка) по центру правой панели */
+      .landscape-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        width: 100%;
+        max-width: min(30vw, calc(100vh - 120px));
+      }
+      .landscape-stack .app-icon {
+        height: auto;
+        flex-shrink: 0;
+      }
+      .landscape-stack .app-icon img {
+        height: 60px;
+        width: auto;
+      }
+      .landscape-stack .story-cover {
+        width: min(30vw, calc(100vh - 200px));
+        max-width: 393px;
+        aspect-ratio: 1 / 1;
+        height: auto;
+        margin: 0;
+        flex: 0 0 auto;
+        overflow: hidden;
+        background-image: var(--banner-url);
+        background-size: cover;
+        background-position: center;
+      }
+      .landscape-stack .chapter-button {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+      }
+      /* В ландшафте скрываем лого и баннер в шапке, показываем только стек */
+      .left-panel > .app-icon,
+      .left-panel > .story-cover { display: none !important; }
+      .left-panel .landscape-stack { display: flex; }
+      
+      /* Исправленные стрелки в ландшафте (усилен селектор, убраны конфликты) */
+      .scroll-indicator.scroll-indicator-landscape {
+        display: block !important;
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        right: auto;
+        bottom: auto;
+        width: 24px;
+        height: 48px;
+        margin: 0;
+        transform: translate(-50%, -50%);
+        z-index: 20;
+      }
+      .scroll-indicator.scroll-indicator-landscape .arrow-segment {
+        left: 5px;
+      }
+      
+      .right-panel{
+        width:50%;
+        display:flex;
+        flex-direction:column;
+        overflow:hidden; 
+        position:relative;
+        background: transparent;
+        padding-bottom: 0;
+      }
+      .right-panel .story-header{max-width:100%;padding:20px;flex-shrink:0}
+      .right-panel .story-content{
+        max-width:393px;
+        padding:50pt 5% 20px 5%; /* верхний отступ — часть скролла, текст закатывается под градиент */
+        flex:1;
+        overflow-y:auto;
+        margin:0 auto;
+      }
+      .story-bottom{ display:none; }
+      
+      .button-wrapper { width: 100%; max-width: 100%; }
+      .right-panel .chapter-button{width:100%;max-width:100%;margin:0}
+    }
+  </style>
+</head>
+<body>
+  <div class="container" style="--banner-url: url({{BANNER_BASE64}})">
+    <!-- Градиенты шапка/футер — слой между контентом и лого/кнопкой/стрелками -->
+    <div class="gradient-overlay gradient-overlay-top" aria-hidden="true"></div>
+    <div class="gradient-overlay gradient-overlay-bottom" aria-hidden="true"></div>
+
+    <div class="left-panel">
+      <!-- Портрет: лого в шапке -->
+      <div class="app-icon">
+        <img src="{{LOGO_BASE64}}" alt="logo">
+      </div>
+      <div class="story-cover"></div>
+
+      <!-- Ландшафт: вертикальный стек (лого, баннер, кнопка) в правой панели -->
+      <div class="landscape-stack">
+        <div class="app-icon">
+          <img src="{{LOGO_BASE64}}" alt="logo">
+        </div>
+        <div class="story-cover"></div>
+        <button type="button" class="chapter-button jump-box landscape-cta">Continue Reading</button>
+      </div>
+    </div>
+
+    <div class="right-panel">
+      <div class="story-cover"></div>
+      <div class="story-content">
+        <p class="story-paragraph">{{BODY}}</p>
+      </div>
+    </div>
+
+    <!-- Кнопка и стрелки портрета — вне right-panel, чтобы были поверх градиента -->
+    <div class="story-bottom">
+      <div class="button-wrapper">
+        <button class="chapter-button jump-box">Continue Reading</button>
+        <div id="scrollArrow" class="scroll-indicator">
+          <div class="arrow-segment segment-1"></div>
+          <div class="arrow-segment segment-2"></div>
+          <div class="arrow-segment segment-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Стрелки для ландшафта: вне панелей, чтобы не обрезались overflow — по центру страницы -->
+    <div class="scroll-indicator scroll-indicator-landscape">
+      <div class="arrow-segment segment-1"></div>
+      <div class="arrow-segment segment-2"></div>
+      <div class="arrow-segment segment-3"></div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // СКРИПТ 1: ОРИГИНАЛЬНЫЙ АВТО-СКРОЛЛ
+    // ==========================================
+    (function() {
+      // Флаг: false — автоскролл выключен; true — работает как обычно. Можно менять в консоли.
+      window.isAutoScrollingEnabled = false;
+
+      var speedDelay = 50; 
+      var scrollStep = 1;  
+      var resumeDelay = 250; 
+
+      var contentEl = document.querySelector('.story-content'); 
+      var rightPanelEl = document.querySelector('.right-panel'); 
+      
+      var hasScrollStarted = false; 
+      var isAutoScrolling = false;
+      var scrollInterval;
+      var resumeTimeout;
+
+      function performScroll() {
+        if (!window.isAutoScrollingEnabled || !isAutoScrolling) return;
+
+        var isLandscape = window.matchMedia("(orientation: landscape)").matches;
+
+        if (isLandscape) {
+          if (contentEl.scrollTop + contentEl.clientHeight < contentEl.scrollHeight) {
+            contentEl.scrollTop += scrollStep;
+          }
+        } else {
+          if (rightPanelEl.scrollTop + rightPanelEl.clientHeight < rightPanelEl.scrollHeight) {
+             rightPanelEl.scrollTop += scrollStep;
+          } 
+        }
+      }
+
+      function pauseAutoScroll() {
+        if (!isAutoScrolling) return;
+        isAutoScrolling = false;
+        clearInterval(scrollInterval);
+        scrollInterval = null;
+        clearTimeout(resumeTimeout);
+        resumeTimeout = null;
+      }
+
+      function resumeAutoScroll() {
+        if (!window.isAutoScrollingEnabled || isAutoScrolling) return;
+        if (!hasScrollStarted) hasScrollStarted = true;
+        isAutoScrolling = true;
+        resumeTimeout = null;
+        scrollInterval = setInterval(performScroll, speedDelay);
+      }
+
+      function scheduleResume() {
+        if (!window.isAutoScrollingEnabled) return;
+        clearTimeout(resumeTimeout);
+        resumeTimeout = setTimeout(resumeAutoScroll, resumeDelay);
+      }
+
+      window.addEventListener('touchstart', pauseAutoScroll, { passive: true });
+      window.addEventListener('touchmove', pauseAutoScroll, { passive: true });
+      window.addEventListener('mousedown', pauseAutoScroll, { passive: true });
+      window.addEventListener('wheel', pauseAutoScroll, { passive: true });
+      window.addEventListener('keydown', pauseAutoScroll, { passive: true });
+
+      window.addEventListener('touchend', scheduleResume, { passive: true });
+      window.addEventListener('mouseup', scheduleResume, { passive: true });
+      window.addEventListener('keyup', scheduleResume, { passive: true });
+      window.addEventListener('wheel', scheduleResume, { passive: true });
+      
+      // Запускаем автоскролл сам по себе через 1.5 сек после загрузки (только если включён)
+      if (window.isAutoScrollingEnabled) setTimeout(scheduleResume, 1500);
+    })();
+
+
+    // ==========================================
+    // СКРИПТ 2: КЛИК ПО КНОПКЕ
+    // ==========================================
+    document.querySelectorAll('.jump-box').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        window.dispatchEvent(new CustomEvent('playable-cta-click', { 
+          bubbles: true,
+          cancelable: true 
+        }));
+      });
+    });
+  </script>
+</body>
+</html>
