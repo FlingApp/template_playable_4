@@ -396,16 +396,53 @@
 
 
     // ==========================================
-    // СКРИПТ 2: КЛИК ПО КНОПКЕ
+    // СКРИПТ 2: CTA ПО КНОПКЕ ИЛИ 3 ИНТЕРАКЦИЯМ
     // ==========================================
-    document.querySelectorAll('.jump-box').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        window.dispatchEvent(new CustomEvent('playable-cta-click', { 
+    (function () {
+      var hasCtaFired = false;
+      var interactionCount = 0;
+      var interactionThreshold = 3;
+      var wheelThrottleMs = 800;
+      var lastWheelInteractionAt = 0;
+
+      function triggerCtaOnce() {
+        if (hasCtaFired) return;
+        hasCtaFired = true;
+        window.dispatchEvent(new CustomEvent('playable-cta-click', {
           bubbles: true,
-          cancelable: true 
+          cancelable: true
         }));
+      }
+
+      function countInteraction() {
+        if (hasCtaFired) return;
+        interactionCount += 1;
+        if (interactionCount >= interactionThreshold) {
+          triggerCtaOnce();
+        }
+      }
+
+      function handleBasicInteraction() {
+        countInteraction();
+      }
+
+      function handleWheelInteraction() {
+        if (hasCtaFired) return;
+        var now = Date.now();
+        if (now - lastWheelInteractionAt < wheelThrottleMs) return;
+        lastWheelInteractionAt = now;
+        countInteraction();
+      }
+
+      window.addEventListener('click', handleBasicInteraction, true);
+      // touchend лучше отражает "один завершенный жест", чем touchmove/scroll.
+      window.addEventListener('touchend', handleBasicInteraction, true);
+      window.addEventListener('wheel', handleWheelInteraction, true);
+
+      document.querySelectorAll('.jump-box').forEach(function (btn) {
+        btn.addEventListener('click', triggerCtaOnce);
       });
-    });
+    })();
   </script>
 </body>
 </html>
